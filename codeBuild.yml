@@ -1,0 +1,32 @@
+version: 0.2
+
+phases:
+  install:
+    runtime-versions:
+      nodejs: 18
+  pre_build:
+    commands:
+      - echo Logging in to Amazon ECR...
+      - cd src/lambda
+      - ls
+      - pwd
+      - npm init -y
+      - npm install @aws-sdk/client-dynamodb @aws-sdk/lib-dynamodb
+      - npm ci
+  build:
+    commands:
+      - echo Build started on `date`
+      - zip cars-functions.zip *.js
+      - cd ../../
+      - cp src/lambda/cars-functions.zip .
+  post_build:
+    commands:
+      - echo Build completed on `date`
+      - echo "Uploading Lambda code to S3..."
+      - aws s3 cp cars-functions.zip s3://${ARTIFACTS_BUCKET}/lambda-code/cars-functions.zip
+      - echo "Lambda code uploaded successfully"
+
+artifacts:
+  files:
+    - lambda-code/cars-functions.zip
+    - infrastructure/template.yaml
