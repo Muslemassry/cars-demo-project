@@ -1,0 +1,208 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Parameters:
+  environmentName:
+    Type: String
+    Description: The name of the environment to be deployed
+Resources:
+  ApiGatewayCloudWatchRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - apigateway.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonAPIGatewayPushToCloudWatchLogs
+  ApiGatewayAccount:
+    Type: AWS::ApiGateway::Account
+    Properties:
+      CloudWatchRoleArn: !GetAtt ApiGatewayCloudWatchRole.Arn
+  dynnamoDBTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: car
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+  lamdaRoleToAccessDynammoDB:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: lambda-dynamodb-role
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: lambda-dynamodb-policy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:DeleteItem
+                  - dynamodb:Scan
+                Resource: !GetAtt dynnamoDBTable.Arn
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: "arn:aws:logs:*:*:*"
+  carCreateLambdaFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: car-create-function
+      Handler: index.handler
+      Role: !GetAtt lamdaRoleToAccessDynammoDB.Arn
+      Runtime: nodejs20.x
+      Code:
+        ZipFile: |
+          const { DynamoDBClient } = require("@aws-sdk/client-dynamodb");
+          const { DynamoDBDocumentClient, PutCommand } = require("@aws-sdk/lib-dynamodb");
+
+          const client = new DynamoDBClient({});
+          const docClient = DynamoDBDocumentClient.from(client);
+          const tableName = 'car';
+          
+          exports.handler = async (event) => {
+              const { id, make, model, plateNumber } = JSON.parse(event.body);
+              const params = {
+                  TableName: tableName,
+                  Item: { id, make, model, plateNumber }
+              };
+              try {
+                  await docClient.send(new PutCommand(params));
+                  return {
+                      statusCode: 200,
+                      body: JSON.stringify({ message: 'Car created successfully' })
+                  };
+              } catch (error) {
+                  return {
+                      statusCode: 500,
+                      body: JSON.stringify({ message: 'Error creating car', error })
+                  };
+              }
+          }; 
+      Architectures:
+        - x86_64
+  carListLambdaFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: car-list-function
+      Handler: index.handler
+      Role: !GetAtt lamdaRoleToAccessDynammoDB.Arn
+      Runtime: nodejs20.x
+      Code:
+        ZipFile: |
+          const { DynamoDBClient } = require("@aws-sdk/client-dynamodb");
+          const { DynamoDBDocumentClient, ScanCommand } = require("@aws-sdk/lib-dynamodb");
+
+          const client = new DynamoDBClient({});
+          const docClient = DynamoDBDocumentClient.from(client);
+          const tableName = 'car';
+          exports.handler = async () => {
+              const params = {
+                  TableName: tableName
+              };
+              try {
+                  const data = await docClient.send(new ScanCommand(params));
+                  return {
+                      statusCode: 200,
+                      body: JSON.stringify(data.Items)
+                  };
+              } catch (error) {
+                  return {
+                      statusCode: 500,
+                      body: JSON.stringify({ message: 'Error fetching cars', error })
+                  };
+              }
+          }; 
+      Architectures:
+        - x86_64
+  carApiGateway:
+    Type: AWS::ApiGateway::RestApi
+    Properties:
+      Name: CarAPI
+  carApiResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      ParentId: !GetAtt carApiGateway.RootResourceId
+      PathPart: cars
+      RestApiId: !Ref carApiGateway
+  carCreateMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref carApiGateway
+      ResourceId: !Ref carApiResource
+      HttpMethod: POST
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${carCreateLambdaFunction.Arn}/invocations
+  carListMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref carApiGateway
+      ResourceId: !Ref carApiResource
+      HttpMethod: GET
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${carListLambdaFunction.Arn}/invocations
+  createCarLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref carCreateLambdaFunction
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${carApiGateway}/*/POST/cars
+  listCarLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref carListLambdaFunction
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${carApiGateway}/*/GET/cars
+  carApiDeployment:
+    Type: AWS::ApiGateway::Deployment
+    DependsOn:
+      - carCreateMethod
+      - carListMethod
+    Properties:
+      RestApiId: !Ref carApiGateway
+  carApiStage:
+    Type: AWS::ApiGateway::Stage
+    Properties:
+      StageName: !Ref environmentName
+      RestApiId: !Ref carApiGateway
+      DeploymentId: !Ref carApiDeployment
+      MethodSettings:
+        - ResourcePath: "/*"
+          HttpMethod: "*"
+          LoggingLevel: INFO
+          DataTraceEnabled: true
+          MetricsEnabled: true
+Outputs:
+  ApiListEndpoint:
+    Description: "API Gateway endpoint URL for the Car API - The list GET method can be accessed at this URL"
+    Value: !Sub "https://${carApiGateway}.execute-api.${AWS::Region}.amazonaws.com/${environmentName}/cars"
+  ApiCreateEndpoint:
+    Description: "API Gateway endpoint URL for the Car API - The create POST method can be accessed at this URL"
+    Value: !Sub "https://${carApiGateway}.execute-api.${AWS::Region}.amazonaws.com/${environmentName}/cars"
