@@ -10,9 +10,19 @@ exports.handler = async () => {
     };
     try {
         const data = await docClient.send(new ScanCommand(params));
+        let items = data.Items;
+        if (!items || items.length === 0) {
+            items = [{
+                id: "dummy",
+                name: "",
+                description: "",
+                isEmpty: true
+            }];
+        }
+
         return {
             statusCode: 200,
-            body: JSON.stringify(data.Items)
+            body: JSON.stringify(items)
         };
     } catch (error) {
         return {
