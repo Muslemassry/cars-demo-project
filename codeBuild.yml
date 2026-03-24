@@ -16,17 +16,16 @@ phases:
   build:
     commands:
       - echo Build started on `date`
-      - zip cars-functions.zip *.js
+      - zip ${ZipFileName} *.js
       - cd ../../
-      - cp src/lambda/cars-functions.zip .
+      - cp src/lambda/${ZipFileName} .
   post_build:
     commands:
       - echo Build completed on `date`
       - echo "Uploading Lambda code to S3..."
-      - aws s3 cp cars-functions.zip s3://${ARTIFACTS_BUCKET}/lambda-code/cars-functions.zip
+      - aws s3 cp ${ZipFileName} s3://${ARTIFACTS_BUCKET}/${CodeS3Key}/${ZipFileName}
       - echo "Lambda code uploaded successfully"
 
 artifacts:
   files:
-    - lambda-code/cars-functions.zip
     - infrastructure/template.yaml
