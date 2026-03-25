@@ -9,6 +9,9 @@ Parameters:
   CodeS3Key:
     Type: String
     Description: The key of the S3 object containing the Lambda function code
+  LambdaVersion:
+    Type: String
+    Description: The version of the Lambda function code
 Resources:
   ApiGatewayCloudWatchRole:
     Type: AWS::IAM::Role
@@ -72,7 +75,7 @@ Resources:
   carCreateLambdaFunction:
     Type: AWS::Lambda::Function
     Properties:
-      FunctionName: car-create-function
+      FunctionName: !Sub "car-create-function-${LambdaVersion}"
       Handler: createCar.handler
       Role: !GetAtt lamdaRoleToAccessDynammoDB.Arn
       Runtime: nodejs20.x
@@ -84,7 +87,7 @@ Resources:
   carListLambdaFunction:
     Type: AWS::Lambda::Function
     Properties:
-      FunctionName: car-list-function
+      FunctionName: !Sub "car-list-function-${LambdaVersion}"
       Handler: listCars.handler
       Role: !GetAtt lamdaRoleToAccessDynammoDB.Arn
       Runtime: nodejs20.x
