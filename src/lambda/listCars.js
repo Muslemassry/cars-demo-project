@@ -13,7 +13,7 @@ exports.handler = async () => {
         let items = data.Items;
         if (!items || items.length === 0) {
             items = [{
-                id: "dummy10880dummy10880",
+                id: "dummy10880dumCCCCmy10880",
                 name: "",
                 description: "",
                 isEmpty: true
