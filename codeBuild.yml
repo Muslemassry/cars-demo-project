@@ -22,7 +22,7 @@ phases:
       - echo "Uploading Lambda code to S3..."
       - aws s3 cp $UNIQUE_ZIP s3://${ARTIFACTS_BUCKET}/${CodeS3Key}/$UNIQUE_ZIP
       - echo "Lambda code uploaded to s3://${ARTIFACTS_BUCKET}/${CodeS3Key}/$UNIQUE_ZIP"
-      - printf '{"UniqueS3Key":{"Value":"%s/%s"}}' "${CodeS3Key}" "$UNIQUE_ZIP" > params.json
+      - printf '{"UniqueS3Key":{"%s/%s"}}' "${CodeS3Key}" "$UNIQUE_ZIP" > params.json
 
 artifacts:
   files:
