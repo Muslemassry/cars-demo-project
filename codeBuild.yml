@@ -6,26 +6,25 @@ phases:
       nodejs: 18
   pre_build:
     commands:
-      - echo Logging in to Amazon ECR...
       - cd src/lambda
-      - ls
-      - pwd
       - npm init -y
       - npm install @aws-sdk/client-dynamodb @aws-sdk/lib-dynamodb
       - npm ci
   build:
     commands:
       - echo Build started on `date`
-      - zip ${ZipFileName} *.js
+      - export UNIQUE_ZIP="${ZipFileName%.zip}-${CODEBUILD_BUILD_NUMBER}.zip"
+      - zip $UNIQUE_ZIP *.js
       - cd ../../
-      - cp src/lambda/${ZipFileName} .
+      - cp src/lambda/$UNIQUE_ZIP .
   post_build:
     commands:
-      - echo Build completed on `date`
       - echo "Uploading Lambda code to S3..."
-      - aws s3 cp ${ZipFileName} s3://${ARTIFACTS_BUCKET}/${CodeS3Key}/${ZipFileName}
-      - echo "Lambda code uploaded successfully"
+      - aws s3 cp $UNIQUE_ZIP s3://${ARTIFACTS_BUCKET}/${CodeS3Key}/$UNIQUE_ZIP
+      - echo "Lambda code uploaded to s3://${ARTIFACTS_BUCKET}/${CodeS3Key}/$UNIQUE_ZIP"
+      - printf '{"UniqueS3Key":{"Value":"%s/%s"}}' "${CodeS3Key}" "$UNIQUE_ZIP" > params.json
 
 artifacts:
   files:
-    - infrastructure/template.yaml
+    - infrastructure/carsServerLessApp.yml
+    - params.json
