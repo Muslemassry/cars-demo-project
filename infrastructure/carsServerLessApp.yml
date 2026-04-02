@@ -179,7 +179,7 @@ Resources:
       Protocol: email
       Endpoint: !Ref snsTopicArnSuccribingEmail
   ExceptionMetricFilter:
-    Type: AWS::CloudWatch::MetricFilter
+    Type: AWS::Logs::MetricFilter
     Properties:
       LogGroupName: !Sub "/serverLessApp/${deploymentNumber}"
       FilterPattern: '"ERROR" "Exception"'
