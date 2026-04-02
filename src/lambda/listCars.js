@@ -9,25 +9,18 @@ exports.handler = async () => {
         TableName: tableName
     };
     try {
+        console.log('Fetching cars from table:', tableName);
         const data = await docClient.send(new ScanCommand(params));
-        let items = data.Items;
-        if (!items || items.length === 0) {
-            items = [{
-                id: "EwETFFFFF7ss7iR",
-                name: "",
-                description: "",
-                isEmpty: true
-            }];
-        }
-
+        console.log('Successfully fetched', data.Items.length, 'cars');
         return {
             statusCode: 200,
-            body: JSON.stringify(items)
+            body: JSON.stringify(data.Items)
         };
     } catch (error) {
+        console.error('Error fetching cars:', error);
         return {
             statusCode: 500,
             body: JSON.stringify({ message: 'Error fetching cars', error })
         };
     }
-}; 
+};
