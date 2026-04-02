@@ -12,6 +12,12 @@ Parameters:
   LambdaVersion:
     Type: String
     Description: The version of the Lambda function code
+  deploymentNumber:
+    Type: String
+    Description: The deployment number to be used in log group naming
+  snsTopicArnSuccribingEmail:
+    Type: String
+    Description: The ARN of the SNS topic for subscribing email notifications
 Resources:
   ApiGatewayCloudWatchRole:
     Type: AWS::IAM::Role
@@ -71,7 +77,7 @@ Resources:
                   - logs:CreateLogGroup
                   - logs:CreateLogStream
                   - logs:PutLogEvents
-                Resource: "arn:aws:logs:*:*:*"
+                Resource: !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/serverLessApp/${deploymentNumber}:*"
   carCreateLambdaFunction:
     Type: AWS::Lambda::Function
     Properties:
@@ -161,6 +167,40 @@ Resources:
           LoggingLevel: INFO
           DataTraceEnabled: true
           MetricsEnabled: true
+  SnsTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: car-api-alarm-topic
+      DisplayName: Car API Alarm Topic
+  SnsTopicSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      TopicArn: !Ref SnsTopic
+      Protocol: email
+      Endpoint: !Ref snsTopicArnSuccribingEmail
+  ExceptionMetricFilter:
+    Type: AWS::CloudWatch::MetricFilter
+    Properties:
+      LogGroupName: !Sub "/serverLessApp/${deploymentNumber}"
+      FilterPattern: '"ERROR" "Exception"'
+      MetricTransformations:
+        - MetricValue: "1"
+          MetricNamespace: "CarAPI"
+          MetricName: "CarApiExceptions"
+  CarApiExceptionAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: car-api-exception-alarm
+      AlarmDescription: "Alarm for monitoring exceptions in Car API"
+      Namespace: "CarAPI"
+      MetricName: "CarApiExceptions"
+      Statistic: Sum
+      Period: 10
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      AlarmActions:
+        - !Ref SnsTopic
 Outputs:
   ApiListEndpoint:
     Description: "API Gateway endpoint URL for the Car API - The list GET method can be accessed at this URL"
