@@ -77,9 +77,12 @@ Resources:
                   - logs:CreateLogGroup
                   - logs:CreateLogStream
                   - logs:PutLogEvents
-                Resource: !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/serverLessApp/${deploymentNumber}:*"
+                Resource:
+                  - !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/car-create-function-${LambdaVersion}:*"
+                  - !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/car-list-function-${LambdaVersion}:*"
   carCreateLambdaFunction:
     Type: AWS::Lambda::Function
+    DependsOn: CreateFunctionLogGroup
     Properties:
       FunctionName: !Sub "car-create-function-${LambdaVersion}"
       Handler: createCar.handler
@@ -92,6 +95,7 @@ Resources:
         - x86_64
   carListLambdaFunction:
     Type: AWS::Lambda::Function
+    DependsOn: ListFunctionLogGroup
     Properties:
       FunctionName: !Sub "car-list-function-${LambdaVersion}"
       Handler: listCars.handler
@@ -167,10 +171,15 @@ Resources:
           LoggingLevel: INFO
           DataTraceEnabled: true
           MetricsEnabled: true
-  LogGroup:
+  CreateFunctionLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
-      LogGroupName: !Sub "/serverLessApp/${deploymentNumber}"
+      LogGroupName: !Sub "/aws/lambda/car-create-function-${LambdaVersion}"
+      RetentionInDays: 7
+  ListFunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/car-list-function-${LambdaVersion}"
       RetentionInDays: 7
   SnsTopic:
     Type: AWS::SNS::Topic
@@ -186,13 +195,23 @@ Resources:
   ExceptionMetricFilter:
     Type: AWS::Logs::MetricFilter
     Properties:
-      LogGroupName: !Sub "/serverLessApp/${deploymentNumber}"
+      LogGroupName: !Sub "/aws/lambda/car-list-function-${LambdaVersion}"
       FilterPattern: '"ERROR" "Exception"'
       MetricTransformations:
         - MetricValue: "1"
           MetricNamespace: "CarAPI"
           MetricName: "CarApiExceptions"
-    DependsOn: LogGroup
+    DependsOn: ListFunctionLogGroup
+  CreateExceptionMetricFilter:
+    Type: AWS::Logs::MetricFilter
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/car-create-function-${LambdaVersion}"
+      FilterPattern: '"ERROR" "Exception"'
+      MetricTransformations:
+        - MetricValue: "1"
+          MetricNamespace: "CarAPI"
+          MetricName: "CarApiExceptions"
+    DependsOn: CreateFunctionLogGroup
   CarApiExceptionAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
