@@ -167,6 +167,11 @@ Resources:
           LoggingLevel: INFO
           DataTraceEnabled: true
           MetricsEnabled: true
+  LogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/serverLessApp/${deploymentNumber}"
+      RetentionInDays: 7
   SnsTopic:
     Type: AWS::SNS::Topic
     Properties:
@@ -187,6 +192,7 @@ Resources:
         - MetricValue: "1"
           MetricNamespace: "CarAPI"
           MetricName: "CarApiExceptions"
+    DependsOn: LogGroup
   CarApiExceptionAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
